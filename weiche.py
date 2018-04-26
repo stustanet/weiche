@@ -3,7 +3,18 @@ from machine import Pin, unique_id, PWM
 import ubinascii
 import json
 
-PWM_PINS = [2, 12, 13, 14]
+"""
+all GPIOs have no internal PULL-UPs
+
+board  | chip   | led channel
+-------+--------+---------------
+D1     | GPIO5  |     0
+D2     | GPIO4  |     1
+D5     | GPIO14 |     2
+D6     | GPIO12 |     3
+"""
+
+PWM_PINS = [5, 4, 14, 12]
 PWM_LEDS  = []
 
 CLIENT_ID = ubinascii.hexlify(unique_id())
@@ -28,15 +39,21 @@ def sub_cb(topic, msg):
         for n in range(len(j[client_id])):
             pwm_val = int(j[client_id][n])
             led = PWM_PINS[n]
-            #print("dimming {} to {}".format(led, pwm_val))
+            print("dimming {} to {}".format(led, pwm_val))
+
+            if pwm_val < 0:
+                pwm_val = 0
+            if pwm_val > 1023:
+                pwm_val = 1023
 
             try:
-                PWM_LEDS[n].duty(1000 - pwm_val)
-            except:
-                pass
+                PWM_LEDS[n].duty(pwm_val)
+            except Exception as e:
+                print(e)
 
 
 def main(server=SERVER):
+    print(CLIENT_ID)
     for pin in PWM_PINS:
         led = Pin(pin, Pin.OUT)
         print(pin, led)
