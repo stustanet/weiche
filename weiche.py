@@ -18,6 +18,7 @@ PWM_PINS = [5, 4, 14, 12]
 PWM_LEDS  = []
 
 CLIENT_ID = ubinascii.hexlify(unique_id())
+client_id = CLIENT_ID.decode('utf-8')
 
 SERVER = "knecht.stusta.de"
 TOPIC = b"space/led"
@@ -25,38 +26,35 @@ TOPIC = b"space/led"
 
 # Received messages from subscriptions will be delivered to this callback
 def sub_cb(topic, msg):
-    print((topic, msg))
-
     try:
         msg = msg.decode('utf-8')
         j = json.loads(msg)
     except Exception as e:
-        print("json kapudd", e)
+        print("[!] json kapudd", e)
         return
 
-    client_id = CLIENT_ID.decode('utf-8')
     if client_id in j.keys():
-        for n in range(len(j[client_id])):
-            pwm_val = int(j[client_id][n])
-            led = PWM_PINS[n]
-            print("dimming {} to {}".format(led, pwm_val))
+        # <3 python
+        for n, (pwm_val, led) in enumerate(zip(j[client_id], PWM_LEDS)):
+            pwm_val = int(pwm_val)
 
             if pwm_val < 0:
                 pwm_val = 0
             if pwm_val > 1023:
                 pwm_val = 1023
 
+            print("[*] dimming led {} to {}".format(n, pwm_val))
+
             try:
-                PWM_LEDS[n].duty(pwm_val)
+                led.duty(pwm_val)
             except Exception as e:
                 print(e)
 
 
 def main(server=SERVER):
-    print(CLIENT_ID)
+    print("[*] weiche {} startet.".format(client_id))
     for pin in PWM_PINS:
         led = Pin(pin, Pin.OUT)
-        print(pin, led)
         PWM_LEDS.append(PWM(led))
 
     # set pwm freq, its global for all pins
