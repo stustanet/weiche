@@ -20,7 +20,7 @@ PWM_LEDS  = []
 CLIENT_ID = ubinascii.hexlify(unique_id())
 client_id = CLIENT_ID.decode('utf-8')
 
-SERVER = "knecht.stusta.de"
+SERVER = "192.168.13.37"
 TOPIC = b"/haspa/led"
 
 
