@@ -21,7 +21,7 @@ CLIENT_ID = ubinascii.hexlify(unique_id())
 client_id = CLIENT_ID.decode('utf-8')
 
 SERVER = "knecht.stusta.de"
-TOPIC = b"space/led"
+TOPIC = b"/haspa/led"
 
 
 # Received messages from subscriptions will be delivered to this callback
