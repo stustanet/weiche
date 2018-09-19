@@ -1,5 +1,6 @@
 from umqtt.simple import MQTTClient
 from machine import Pin, unique_id, PWM
+import network
 import ubinascii
 import json
 
@@ -51,6 +52,7 @@ def sub_cb(topic, msg):
                 print(e)
 
 
+
 def main(server=SERVER):
     print("[*] weiche {} startet.".format(client_id))
     for pin in PWM_PINS:
@@ -59,6 +61,14 @@ def main(server=SERVER):
 
     # set pwm freq, its global for all pins
     PWM(led).freq(1000)
+
+    for p in PWM_LEDS:
+        p.duty(512)
+
+    sta_if = network.WLAN(network.STA_IF)
+    while not sta_if.isconnected():
+        print('Waiting for network connection...')
+        time.sleep(1)
 
     c = MQTTClient(CLIENT_ID, server)
     c.set_callback(sub_cb)
