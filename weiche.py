@@ -62,8 +62,9 @@ def main(server=SERVER):
     # set pwm freq, its global for all pins
     PWM(led).freq(1000)
 
-    for p in PWM_LEDS:
-        p.duty(512)
+    for i, p in enumerate(PWM_LEDS):
+        if (i % 2) == 0:
+            p.duty(512)
 
     sta_if = network.WLAN(network.STA_IF)
     while not sta_if.isconnected():
@@ -74,6 +75,9 @@ def main(server=SERVER):
     c.set_callback(sub_cb)
     c.connect()
     c.subscribe(TOPIC)
+
+    c.publish(b"/haspa/power/status", b"{}")
+
     while True:
         c.wait_msg()
 
