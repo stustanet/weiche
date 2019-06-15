@@ -1,10 +1,12 @@
 from umqtt.simple import MQTTClient
 from machine import Pin, unique_id, PWM
+import machine
 import network
 import ubinascii
 import json
 import time
 import gc
+import sys
 
 
 """
@@ -33,10 +35,12 @@ client_id = CLIENT_ID.decode('utf-8')
 SERVER = "192.168.13.37"
 TOPIC = b"/haspa/led"
 
+valuesFromMqtt = False
+
 
 # Received messages from subscriptions will be delivered to this callback
 def sub_cb(topic, msg):
-    global a
+    global a, valuesFromMqtt
     try:
         msg = msg.decode('utf-8')
         j = json.loads(msg)
@@ -56,11 +60,34 @@ def sub_cb(topic, msg):
 
             print("[*] dimming led {} to {}".format(n, pwm_val))
 
+            valuesFromMqtt = True
+
             try:
                 led.duty(pwm_val)
             except Exception as e:
                 print(e)
 
+def handle_uart_cmd(cmd):
+    global valuesFromMqtt
+    parts = cmd.split()
+    if len(parts) < 2 or len(parts) > 8 or parts[0] != b'SET':
+        print("Expected SET <VALUE0> ... <VALUE7>")
+        print("Press Ctrl-C to exit to a python shell.")
+        return
+
+    for i in range(0, len(parts) - 1):
+        val = None
+        if parts[i + 1].isdigit():
+            val = int(parts[i + 1])
+
+        if val is None or val < 0 or val > 1023:
+            print("Expected an integer between 0 and 1023 but got \"{}\"".format(parts[i + 1]))
+            continue
+
+
+        valuesFromMqtt = False
+        print("[*] set led {} to {} by serial request".format(i, val))
+        PWM_LEDS[i].duty(val)
 
 
 def main(server=SERVER):
@@ -102,10 +129,37 @@ def main(server=SERVER):
 
     statusled.off()
     print("[*] Ready for messages")
+
+    print("[*] Initialize UART for control commands")
+
+    ver = sys.implementation[1]
+    if ver[0] > 1 or ver[1] > 9:
+        print("[!] The UART only works on versions <= 1.9.x, but got version", ver)
+
+    time.sleep(1)
+    u = machine.UART(0, 115200)
+
+    uartBuffer = b''
+
+    print ("IP address: ", sta_if.ifconfig()[0])
+
     while True:
-        statusled.on()
-        c.wait_msg()
-        statusled.off()
+        c.check_msg()
+
+        d = u.read()
+        if d is not None:
+            uartBuffer += d
+            nl = uartBuffer.find(b'\r')
+            if nl >= 0:
+                command = uartBuffer[:nl].strip()
+                uartBuffer = uartBuffer[(nl + 1):]
+                handle_uart_cmd(command)
+
+        if valuesFromMqtt:
+            statusled.on()
+        else:
+            statusled.off()
+
         gc.collect()
 
     c.disconnect()
