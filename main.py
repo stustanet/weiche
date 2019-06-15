@@ -1,4 +1,5 @@
 import machine
+import time
 
 time.sleep(1)
 
@@ -9,7 +10,8 @@ while(True):
     except KeyboardInterrupt:
         # If we got a keyboard interrupt, we leave the loop.
         break
-    except:
+    except Exception as e:
         # Any other exception: Just restart the CPU
+        print(e)
         machine.reset()
 
