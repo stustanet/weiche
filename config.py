@@ -1,3 +1,8 @@
+"""
+Implement a fancy config interface with remote updates
+"""
+#pylint: disable=bare-except,broad-except
+
 import json
 import http_grab
 
@@ -39,8 +44,8 @@ class ConfigInterface:
 
     URL = "/config.json"
     def __init__(self):
-        self.CLIENT_ID = binascii.hexlify(unique_id())
-        self.client_id = self.CLIENT_ID.decode('utf-8')
+        identifier = binascii.hexlify(unique_id())
+        self.client_id = identifier.decode('utf-8')
         self._config = None
 
     def config(self, section, key, dflt=None):
@@ -59,8 +64,8 @@ class ConfigInterface:
         If the key could not be read or the config does not exist: return dflt
         """
         try:
-            with open("config.json", "r") as f:
-                config = json.loads(f.read())
+            with open("config.json", "r") as cfgfile:
+                config = json.loads(cfgfile.read())
         except:
             # any error while loading (such as file not found or decoding)
             # will lead to graceful abort
@@ -85,7 +90,8 @@ class ConfigInterface:
         for host in known_hosts:
             try:
                 if ":" in host:
-                    if self.getconfig_from_host(host):
+                    host, port = host.split(":", 1)
+                    if self.getconfig_from_host(host, port):
                         return True
                 else:
                     for port in [8000, 80]:
@@ -96,8 +102,8 @@ class ConfigInterface:
 
         # we have exhausted remote configs
         try:
-            with open("config.json", "r") as f:
-                config = json.loads(f.read())
+            with open("config.json", "r") as cfgfile:
+                config = json.loads(cfgfile.read())
         except:
             print("[!] Fallback config failed. will now reset.")
             raise
@@ -105,6 +111,8 @@ class ConfigInterface:
             self._config = config
             print("[*] loading fallback local config was successful")
             return True
+        return False
+
 
     def getconfig_from_host(self, host, port):
         """
@@ -127,40 +135,46 @@ class ConfigInterface:
                 # compare with local config.json
                 config_changed = True
                 try:
-                    with open("config.json", "r") as f:
-                        if f.read() == resp:
-                            data_change = False
+                    with open("config.json", "r") as cfgfile:
+                        if cfgfile.read() == resp:
+                            config_changed = False
                 except OSError:
                     # no config there, so write an update
                     config_changed = True
-        except OSError as e:
-            print("[!] config host %s:%d is not available: %s"%(host, port, e))
+        except OSError as err:
+            print("[!] config host %s:%d is not available: %s"%(host, port, err))
             return False
 
         if self._check_config(config):
             self._config = config
-            self._config[self.client_id]['host'] = {'name': host }
+            self._config[self.client_id]['host'] = {'name': host}
             if config_changed:
                 print("[*] config changed, storing it for later use")
                 self._write_config(config)
             return True
+        return False
+
 
     def _write_config(self, config):
+        """
+        Store the config to the local filesystem
+        """
         try:
-            with open("config.json", "w+") as f:
+            with open("config.json", "w+") as cfgfile:
                 to_store = {
                     self.client_id: config[self.client_id]
                 }
-                f.write(json.dumps(to_store))
-        except OSError as e:
-            print("[!] Write failed: ", e)
+                cfgfile.write(json.dumps(to_store))
+        except OSError as err:
+            print("[!] Config write failed: ", err)
+
 
     def _check_config(self, config):
         """
         check if the config is viable
         """
         # test the config
-        if type(config) != dict:
+        if not isinstance(config, dict):
             print("Config is not dict")
             return False
 

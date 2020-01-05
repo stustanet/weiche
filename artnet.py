@@ -4,8 +4,9 @@
 A micropython / python compatible artnet receiver packet
 """
 
+#pylint: disable=broad-except
+
 import struct
-import errno
 
 try:
     import socket
@@ -16,16 +17,14 @@ except ImportError:
     import usocket as socket
     import utime as time
 
-    from machine import unique_id
-    import ubinascii
-
+ARTNET_MAGIC = b"Art-Net\0"
 
 class ArtNetPacket:
     """
     Representation of an Art-Net packet
     """
-
-    Magic = b"Art-Net\0"
+    #pylint: disable=invalid-name
+    Magic = ARTNET_MAGIC
     Opcode = 0x50
     Version = 14
     Sequence = 42
@@ -39,7 +38,7 @@ class ArtNetPacket:
         """
         unpack it from the given bytes() buffer
         """
-        self.Magic = data[0:8]
+        #self.Magic = data[0:8]
 
         self.Opcode, \
             self.Version, \
@@ -60,7 +59,7 @@ class ArtNetPacket:
             self.Length = len(self.Data)
 
         data = bytes()
-        data += self.Magic
+        data += ARTNET_MAGIC
         data += struct.pack(self._fmt,
                             self.Opcode,
                             self.Version,
@@ -87,6 +86,7 @@ class ArtNetController:
         self.remote = None
 
     def setconfig(self, config):
+        """ update the stored config """
         self.config = config
 
     def init_broadcast_receiver(self):
@@ -110,7 +110,6 @@ class ArtNetController:
         self.socket.setblocking(True)
         while True:
             try:
-                self.getconfig()
                 while True:
                     if not self.run_once():
                         break
@@ -123,15 +122,18 @@ class ArtNetController:
             time.sleep(1)
 
     def run_once(self):
-        # this is to be used if it is included in a select() structure
+        """
+        this is to be used if it is included in a select() structure
+        """
+
         try:
             data, self.remote = self.socket.recvfrom(1024)
-        except OSError as e:
+        except OSError as err:
             #if e.errno == errno.EWOULDBLOCK:
             #    # Some hickup in the select business happened. Ignore.
             #    return True
             #else:
-            print("err", e)
+            print("err", err)
             return False
 
         if data is None:

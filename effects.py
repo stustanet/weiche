@@ -1,4 +1,11 @@
-import utime
+"""
+A module provinding the effect queue for playing cues from a master controller
+"""
+
+try:
+    import utime
+except ImportError:
+    import time as utime
 
 class EffectQueue:
     """
@@ -46,6 +53,9 @@ class EffectQueue:
 
 
     def active(self):
+        """
+        Is there currently a show running?
+        """
         return len(self.queue) > 0
 
     def age(self, elementtime):
@@ -56,9 +66,9 @@ class EffectQueue:
         # local time in seconds and milliseconds
         # returns 8 tupel (y, m, d, WEEKDAY, H, m, s, subs)
         # used for subseconds
-        dt = self.ntp.RTC.datetime()
-        ltsec = utime.mktime((dt[0], dt[1], dt[2], dt[4], dt[5], dt[6], dt[2], 0, 0))
-        ltmsec = dt[7] // 1000
+        rdt = self.ntp.RTC.datetime()
+        ltsec = utime.mktime((rdt[0], rdt[1], rdt[2], rdt[4], rdt[5], rdt[6], rdt[2], 0, 0))
+        ltmsec = rdt[7] // 1000
 
         #ltmsec = self.ntp.RTC.datetime()[7] / 1000
         #ltsec = utime.time()
@@ -98,7 +108,8 @@ class EffectQueue:
             self.queue.pop(0)
 
         while self.queue and self.age(self.queue[0][0]) > 0:
-            print("Skipping front of queue", self.queue[0], "because age is ", self.age(self.queue[0][0]))
+            print("Skipping front of queue", self.queue[0], "because age is ",
+                  self.age(self.queue[0][0]))
             self.queue.pop(0)
             self.queue = []
 
@@ -107,7 +118,10 @@ class EffectQueue:
 
 
     def debug(self):
-        for s in self.queue:
-            time_to_go = self.age(s[0])
+        """
+        Print the cue
+        """
+        for step in self.queue:
+            time_to_go = self.age(step[0])
 
-            print("%5.2f  %s"%(time_to_go, str(s)))
+            print("%5.2f  %s"%(time_to_go, str(step)))

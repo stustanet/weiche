@@ -1,11 +1,21 @@
+"""
+Just a quick and dirty far from feature complete http requestor
+- that does support timeouts!
+"""
+
 try:
     import usocket as socket
-    import uselect as select
+    #import uselect as select
 except ImportError:
     import socket
-    import select
+    #import select
 
 def get(host, port, url, timeout=1):
+    """
+    This is the worst http request library you know - but it does
+    timeouts, which makes it more usable than any other http library for
+    micropython on the market as of 01/2020.
+    """
     sock = socket.socket()
 
     sock.settimeout(timeout)
