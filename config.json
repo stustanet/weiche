@@ -1,0 +1,42 @@
+{
+	"246f28248b30": {
+		"idle": {
+			"lights": [0, 512, 0, 512, 0, 512, 0, 512]
+		},
+		"mqtt": {
+			"enabled": 1,
+			"server": "192.168.0.102:1883",
+			"default_topic": "/haspa/led/test",
+			"queue_topic": "/haspa/led/cue"
+		},
+		"artnet": {
+			"enabled": 1,
+			"universe": 1,
+			"start_address": 0
+		},
+		"serial": {},
+		"ntp": {
+			"host": "pool.ntp.org"
+		}
+	},
+	"4242": {
+		"idle": {
+			"lights": [0, 512, 0, 512, 0, 512, 0, 512]
+		},
+		"mqtt": {
+			"enabled": 1,
+			"server": "192.168.13.37:1883",
+			"default_topic": "/haspa/led/test",
+			"queue_topic": "/haspa/led/cue"
+		},
+		"artnet": {
+			"enabled": 1,
+			"universe": 1,
+			"start_address": 0
+		},
+		"serial": {},
+		"ntp": {
+			"host": "127.0.0.1"
+		}
+	}
+}

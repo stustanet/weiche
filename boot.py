@@ -3,15 +3,10 @@
 #esp.osdebug(None)
 import gc
 import webrepl
-import time
 
 webrepl.start()
 gc.collect()
 
-time.sleep(1)
-
-while(True):
-    try:
-        import weiche
-    except:
-        pass
+import network
+sta_if = network.WLAN(network.STA_IF)
+sta_if.active(True);
