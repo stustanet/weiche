@@ -78,6 +78,10 @@ class WeicheMqtt:
         print("[*] Subscribing to topic (single msg)", default_topic)
         self.mqtt.subscribe(default_topic)
 
+        mood_topic = self.config.config('mqtt', 'mood_topic')
+        print("[*] Subscribing to topic (mood msg)", mood_topic)
+        self.mqtt.subscribe(mood_topic)
+
         cue_topic = self.config.config('mqtt', 'queue_topic')
         print("[*] Subscribing to topic (cue)", cue_topic)
         self.mqtt.subscribe(cue_topic)
@@ -106,7 +110,8 @@ class WeicheMqtt:
             self.mqtt_light_callback(jsondata)
         elif topic == self.config.config('mqtt', 'queue_topic'):
             self.mqtt_queue_callback(jsondata)
-        # todo add 'mood' topic for a topic without client_id checking
+        elif topic == self.config.config('mqtt', 'mood_topic'):
+            self.mqtt_mood_callback(jsondata)
 
 
     def mqtt_light_callback(self, jsondata):
@@ -116,6 +121,17 @@ class WeicheMqtt:
         if self.config.client_id not in jsondata.keys():
             return
         background_lights = jsondata[self.config.client_id]
+
+        while len(background_lights) < 8:
+            background_lights.append(0)
+
+        self.set_lights(background_lights)
+
+    def mqtt_mood_callback(self, jsondata):
+        """
+        Simple set lights, does not contain a target id
+        """
+        background_lights = jsondata
 
         while len(background_lights) < 8:
             background_lights.append(0)

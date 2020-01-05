@@ -8,6 +8,7 @@
 			"server": "192.168.0.102:1883",
 			"default_topic": "/haspa/led/test",
 			"queue_topic": "/haspa/led/cue"
+			"mood_topic": "/haspa/mood/main"
 		},
 		"artnet": {
 			"enabled": 1,
@@ -25,9 +26,10 @@
 		},
 		"mqtt": {
 			"enabled": 1,
-			"server": "192.168.13.37:1883",
+			"server": "192.168.0.102:1883",
 			"default_topic": "/haspa/led/test",
-			"queue_topic": "/haspa/led/cue"
+			"queue_topic": "/haspa/led/cue",
+			"mood_topic": "/haspa/mood/main"
 		},
 		"artnet": {
 			"enabled": 1,
