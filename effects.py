@@ -47,10 +47,19 @@ class EffectQueue:
             self.queue.pop(0)
 
         self.queue = self.queue + new
-
+        
         while self.queue and self.age(self.queue[0][0]) > 0:
             self.queue.pop(0)
 
+        max_age = self.config.config('mqtt', 'max_cue_future_seconds', 0)
+        if max_age != 0:
+            i = 0
+            while i < len(self.queue):
+                if self.age(self.queue[i][0]) < -max_age:
+                    # the element is too far in the future, purge it!
+                    self.queue.pop(i)
+                    i -= 1
+                i += 1
 
     def active(self):
         """

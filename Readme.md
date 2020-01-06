@@ -60,8 +60,9 @@ The config file looks like this:
                         "enabled": 1,
                         "server": "192.168.0.102:1883",
                         "default_topic": "/haspa/led/test",
-                        "queue_topic": "/haspa/led/cue"
-                        "mood_topic": "/haspa/mood/main"
+                        "queue_topic": "/haspa/led/cue",
+                        "mood_topic": "/haspa/mood/main",
+                        ۰"max_cue_future_seconds": 120
                 },
                 "artnet": {
                         "enabled": 1,
@@ -93,6 +94,9 @@ The weiche systems do not support encrypted mqtt.
 `mqtt:mood_topic`: the global light topic to use. (see below)
 
 `mqtt:queue_topic`: the individual addressed light show to use. (see below)
+
+`max_cue_future_seconds`: the maximum length into the future a cue is allowed.
+Longer cues than this value have to be split into multiple messages.
 
 `artnet:enabled`: should artnet be used
 
