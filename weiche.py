@@ -10,9 +10,13 @@ Weiche implements the local controls for a hackerspace light control interface
 """
 
 import gc
-import sys
-import time
-import json
+
+print("GC start", gc.mem_free())
+
+
+
+gc.collect()
+
 
 try:
     # micropython boot
@@ -30,12 +34,19 @@ except ImportError:
 
     import select
 
+import sys
+import time
+import ujson as json
 
-from artnet import ArtNetController
+gc.collect()
+
 from betterntp import BetterNTP
-from config import ConfigInterface
 from effects import EffectQueue
+from config import ConfigInterface
 
+gc.collect()
+
+print("GC After imports", gc.mem_free())
 
 # all GPIOs have no internal PULL-UPs
 #
@@ -70,7 +81,7 @@ class WeicheMqtt:
         server = self.config.config('mqtt', 'server')
         server, port = server.split(":", 1)
         print("[*] Connecting to mqtt at %s port %s"%(server, port))
-        self.mqtt = MQTTClient(self.config.CLIENT_ID, server)
+        self.mqtt = MQTTClient(self.config.client_id, server)
         self.mqtt.set_callback(self.mqtt_cb)
         self.mqtt.connect()
 
@@ -79,8 +90,11 @@ class WeicheMqtt:
         self.mqtt.subscribe(default_topic)
 
         mood_topic = self.config.config('mqtt', 'mood_topic')
-        print("[*] Subscribing to topic (mood msg)", mood_topic)
-        self.mqtt.subscribe(mood_topic)
+        if mood_topic is None:
+            print("[!] no mood topic set, ignoring")
+        else:
+            print("[*] Subscribing to topic (mood msg)", mood_topic)
+            self.mqtt.subscribe(mood_topic)
 
         cue_topic = self.config.config('mqtt', 'queue_topic')
         print("[*] Subscribing to topic (cue)", cue_topic)
@@ -164,9 +178,7 @@ class WeicheMqtt:
         return self.mqtt.check_msg()
 
 class Weiche:
-    """
-    Main Orchestrator for the local weiche behaviour
-    """
+    #Main Orchestrator for the local weiche behaviour
 
     def __init__(self):
         self.statusled = machine.Pin(16, machine.Pin.OUT)
@@ -181,11 +193,24 @@ class Weiche:
 
         self.running = True
 
+        print("[*] weiche {} startet.".format(self.config.client_id))
+        for pin in PWM_PINS:
+            led = machine.Pin(pin, machine.Pin.OUT)
+            self.leds.append(machine.PWM(led))
+
+        self.statusled.on()
+
+        # set pwm freq, its global for all pins
+        machine.PWM(led).freq(1000)
+
+        print("[*] Enabling default mood")
+        # config.default_config will read from the stored config - asap
+        self.set_lights(self.config.default_config('idle', 'lights', []))
+
+        print("GC After boot", gc.mem_free())
 
     def set_lights(self, light_vals):
-        """
-        Set light values for all leds
-        """
+        #Set light values for all leds
         if light_vals is None:
             light_vals = []
 
@@ -201,9 +226,7 @@ class Weiche:
 
     uartbuffer = ''
     def uart_receive(self):
-        """
-        Read a single byte from stdin and process it maybe as a command
-        """
+        #Read a single byte from stdin and process it maybe as a command
         char = sys.stdin.read(1)
         if char in "\n\r":
             command = self.uartbuffer.strip()
@@ -214,9 +237,7 @@ class Weiche:
         return True
 
     def handle_uart_cmd(self, cmd):
-        """
-        Handle the setting of LED values
-        """
+        #Handle the setting of LED values
         parts = cmd.split()
         if len(parts) < 2 or len(parts) > 8 or parts[0] != 'SET':
             print("Expected SET <VALUE0> ... <VALUE7>")
@@ -237,29 +258,13 @@ class Weiche:
 
 
     def artnet_update(self, data):
-        """
-        Set the light to data, data is in the range of 0-255
-        """
+        #Set the light to data, data is in the range of 0-255
         self.set_lights([v * 4 for v in data])
         return True
 
     def init(self):
-        """
-        Setup basic stuff for the server - to be done only once
-        """
-        print("[*] weiche {} startet.".format(self.config.client_id))
-        for pin in PWM_PINS:
-            led = machine.Pin(pin, machine.Pin.OUT)
-            self.leds.append(machine.PWM(led))
-
-        self.statusled.on()
-
-        # set pwm freq, its global for all pins
-        machine.PWM(led).freq(1000)
-
-        print("[*] Enabling default mood")
-        # config.default_config will read from the stored config - asap
-        self.set_lights(self.config.default_config('idle', 'lights', []))
+        gc.collect()
+        #Setup basic stuff for the server - to be done only once
 
         sta_if = network.WLAN(network.STA_IF)
 
@@ -292,16 +297,17 @@ class Weiche:
 
         self.ntp.set_host(self.config.config('ntp', 'host'))
 
+        gc.collect()
+
     def connect(self):
-        """
-        Connect to all interfaces configured in the config
-        """
+        #Connect to all interfaces configured in the config
 
         # uart is always enabled!
         print("[*] Enabling UART control")
         self.poll.register(sys.stdin, select.POLLIN)
 
         if self.config.config('artnet', 'enabled'):
+            from artnet import ArtNetController
             print("[*] Connecting to Art-Net")
             self.artnet = ArtNetController(self.artnet_update)
             self.artnet.setconfig(self.config)
@@ -322,14 +328,14 @@ class Weiche:
             print("[*] mqtt disabled")
 
     def run(self):
-        """
-        Main loop of the weiche. Will terminate as soon as something bad
-        happened, that requires a reconnect.
-        when raising an exception it requires the reset of the controller
-        """
+        gc.collect()
+        #Main loop of the weiche. Will terminate as soon as something bad
+        #happened, that requires a reconnect.
+        #when raising an exception it requires the reset of the controller
         self.running = True
         last_ntp_update = 0
         while self.running:
+            gc.collect()
             ready = []
             # if effectqueue is having data speed up the main loop
             if self.effectqueue.active():
@@ -383,12 +389,11 @@ class Weiche:
                 gc.collect()
 
     def main(self):
-        """
-        Start the weiche, connect it to all interfaces and run it
-
-        When an exception is raised, this method will wait for 10 seconds
-        in order for an Ctrl+C debugger occur.
-        """
+        #
+        #Start the weiche, connect it to all interfaces and run it
+        #
+        #When an exception is raised, this method will wait for 10 seconds
+        #in order for an Ctrl+C debugger occur.
         self.init()
 
         while True:
@@ -396,8 +401,10 @@ class Weiche:
             print("[?] Starting setup")
             try:
                 self.connect()
+                gc.collect()
                 print("[*] Ready for messages")
                 self.run()
+                gc.collect()
                 print("[!] connection loop terminated. reinitializing")
             except KeyboardInterrupt: #pylint: disable=try-except-raise
                 # filter out and allow keyboard interrupts
@@ -410,9 +417,10 @@ class Weiche:
                 machine.reset()
 
 
+weiche = Weiche()
+
 def main():
     """ - """
-    weiche = Weiche()
     weiche.main()
 
 if __name__ == "__main__":
