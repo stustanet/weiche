@@ -288,7 +288,7 @@ class Weiche:
            and gateway[3] not in possible_controllers:
             possible_controllers.append(gateway[3])
 
-        self.statusled.off()
+        self.statusled.on()
         if not self.config.ready():
             print("[*] Collecting config")
             if not self.config.getconfig(possible_controllers):
@@ -296,6 +296,7 @@ class Weiche:
                 raise RuntimeError("Could not get config")
 
         self.ntp.set_host(self.config.config('ntp', 'host'))
+        self.statusled.off()
 
         gc.collect()
 
