@@ -147,6 +147,10 @@ class WeicheMqtt:
         """
         background_lights = jsondata
 
+        if len(background_lights == 4):
+            # double it up
+            background_lights += background_lights
+
         while len(background_lights) < 8:
             background_lights.append(0)
 
