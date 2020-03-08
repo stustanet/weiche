@@ -1,7 +1,6 @@
 #!/usr/bin/env python3.6
 # python 3.6 is required for mqtt...
 
-# I like to be able to have catchalls!
 #pylint: disable=bare-except,broad-except
 """
 Die weiche weicht zum Hauptbahnhof.
@@ -13,10 +12,7 @@ import gc
 
 print("GC start", gc.mem_free())
 
-
-
 gc.collect()
-
 
 try:
     # micropython boot
@@ -40,13 +36,10 @@ import ujson as json
 
 gc.collect()
 
-from betterntp import BetterNTP
-from effects import EffectQueue
 from config import ConfigInterface
 
 gc.collect()
 
-print("GC After imports", gc.mem_free())
 
 # all GPIOs have no internal PULL-UPs
 #
@@ -62,14 +55,15 @@ print("GC After imports", gc.mem_free())
 # GPIO2  |     3.1
 PWM_PINS = [4, 5, 12, 13, 14, 15, 0, 2]
 
+print("GC After imports", gc.mem_free())
+
 class WeicheMqtt:
     """
     MQTT Interface for all the weiche logic
     """
 
-    def __init__(self, config, effectqueue, set_lights):
+    def __init__(self, config, set_lights):
         self.config = config
-        self.effectqueue = effectqueue
         self.set_lights = set_lights
         self.mqtt = None
 
@@ -96,10 +90,6 @@ class WeicheMqtt:
             print("[*] Subscribing to topic (mood msg)", mood_topic)
             self.mqtt.subscribe(mood_topic)
 
-        cue_topic = self.config.config('mqtt', 'queue_topic')
-        print("[*] Subscribing to topic (cue)", cue_topic)
-        self.mqtt.subscribe(cue_topic)
-
         # Request an update for the current light state
         self.mqtt.publish(b"/haspa/power/status",
                           json.dumps([self.config.client_id]))
@@ -122,8 +112,6 @@ class WeicheMqtt:
 
         if topic == self.config.config('mqtt', 'default_topic'):
             self.mqtt_light_callback(jsondata)
-        elif topic == self.config.config('mqtt', 'queue_topic'):
-            self.mqtt_queue_callback(jsondata)
         elif topic == self.config.config('mqtt', 'mood_topic'):
             self.mqtt_mood_callback(jsondata)
 
@@ -147,7 +135,7 @@ class WeicheMqtt:
         """
         background_lights = jsondata
 
-        if len(background_lights == 4):
+        if len(background_lights) == 4:
             # double it up
             background_lights += background_lights
 
@@ -156,21 +144,6 @@ class WeicheMqtt:
 
         self.set_lights(background_lights)
 
-
-    def mqtt_queue_callback(self, jsondata):
-        """
-        Set a lightshow targeted at this controller
-        """
-        if not isinstance(jsondata, dict):
-            print("[!] cue data has to be {\"ID\":[[time,[led1, led2, ...]], ...]")
-            return
-        if self.config.client_id not in jsondata.keys():
-            print("[!] Not meant for me")
-            return
-
-        print("[*] Received queue update. New cue:")
-        self.effectqueue.update(jsondata[self.config.client_id])
-        self.effectqueue.debug()
 
     @property
     def sock(self):
@@ -181,18 +154,16 @@ class WeicheMqtt:
         """ Proxy """
         return self.mqtt.check_msg()
 
+
 class Weiche:
     #Main Orchestrator for the local weiche behaviour
 
     def __init__(self):
         self.statusled = machine.Pin(16, machine.Pin.OUT)
         self.config = ConfigInterface()
-        self.ntp = BetterNTP()
-        self.effectqueue = EffectQueue(self.config, self.ntp, self.set_lights)
         self.poll = select.poll()
         self.leds = []
 
-        self.artnet = None
         self.mqttinterface = None
 
         self.running = True
@@ -261,11 +232,6 @@ class Weiche:
             self.leds[i].duty(val)
 
 
-    def artnet_update(self, data):
-        #Set the light to data, data is in the range of 0-255
-        self.set_lights([v * 4 for v in data])
-        return True
-
     def init(self):
         gc.collect()
         #Setup basic stuff for the server - to be done only once
@@ -299,7 +265,6 @@ class Weiche:
                 print("[!] Could not get config. retrying")
                 raise RuntimeError("Could not get config")
 
-        self.ntp.set_host(self.config.config('ntp', 'host'))
         self.statusled.off()
 
         gc.collect()
@@ -311,20 +276,8 @@ class Weiche:
         print("[*] Enabling UART control")
         self.poll.register(sys.stdin, select.POLLIN)
 
-        if self.config.config('artnet', 'enabled'):
-            from artnet import ArtNetController
-            print("[*] Connecting to Art-Net")
-            self.artnet = ArtNetController(self.artnet_update)
-            self.artnet.setconfig(self.config)
-            self.artnet.init_broadcast_receiver()
-            self.poll.register(self.artnet.socket, select.POLLIN)
-        else:
-            self.artnet = None
-            print("[*] ArtNet disabled")
-
         if self.config.config('mqtt', 'enabled'):
             self.mqttinterface = WeicheMqtt(self.config,
-                                            self.effectqueue,
                                             self.set_lights)
             sock = self.mqttinterface.connect()
             self.poll.register(sock, select.POLLIN)
@@ -338,26 +291,9 @@ class Weiche:
         #happened, that requires a reconnect.
         #when raising an exception it requires the reset of the controller
         self.running = True
-        last_ntp_update = 0
         while self.running:
             gc.collect()
-            ready = []
-            # if effectqueue is having data speed up the main loop
-            if self.effectqueue.active():
-                while self.effectqueue.active() and not ready:
-                    self.effectqueue.trigger()
-                    ready = self.poll.poll(10)
-            else:
-                # Update via NTP 1/min - if no effect is running
-                if self.ntp.nowfloat() - last_ntp_update > 60:
-                    self.ntp.update()
-                    last_ntp_update = self.ntp.nowfloat()
-
-                # effectqueue inactive, wait longer (keeps the status led on
-                # longer, else there is no effect, as poll will return as soon
-                # as there is something to do
-                gc.collect()
-                ready = self.poll.poll(250)
+            ready = self.poll.poll(250)
 
             # if the poll() returned an empty list, we are sad
             if not ready:
@@ -376,10 +312,6 @@ class Weiche:
                     print("[!] Socket ", sock, "reported POLLUP or POLLERR, "
                           "therefore shutting down")
                     break
-
-                elif self.artnet and sock == self.artnet.socket:
-                    print("[*] Artnet received")
-                    self.artnet.run_once()
 
                 elif self.mqttinterface and sock == self.mqttinterface.sock:
                     print("[*] MQTT received")
