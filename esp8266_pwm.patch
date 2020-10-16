@@ -1,0 +1,85 @@
+From 8364d03d4c8cf4fdcba6d24c968d73cc75455ccc Mon Sep 17 00:00:00 2001
+From: Daniel Frejek <daniel.frejek@stusta.net>
+Date: Fri, 16 Oct 2020 19:08:03 +0200
+Subject: [PATCH] Use NMI for PWM
+
+---
+ ports/esp8266/esppwm.c | 25 ++++++++++++++++---------
+ 1 file changed, 16 insertions(+), 9 deletions(-)
+
+diff --git a/ports/esp8266/esppwm.c b/ports/esp8266/esppwm.c
+index d5bcea9ac..7fcf56421 100644
+--- a/ports/esp8266/esppwm.c
++++ b/ports/esp8266/esppwm.c
+@@ -22,6 +22,8 @@
+ #define PWM_DBG(...)
+ // #define PWM_DBG(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+ 
++#define PWM_INTR_NMI 1
++
+ #define ICACHE_RAM_ATTR // __attribute__((section(".text")))
+ 
+ #define PWM_CHANNEL 8
+@@ -298,10 +300,14 @@ pwm_get_freq(uint8 channel) {
+  * Parameters   : NONE
+  * Returns      : NONE
+ *******************************************************************************/
++#if PWM_INTR_NMI
++STATIC void ICACHE_RAM_ATTR
++pwm_tim1_intr_handler() {
++#else
+ STATIC void ICACHE_RAM_ATTR
+ pwm_tim1_intr_handler(void *dummy) {
+     (void)dummy;
+-
++#endif
+     RTC_CLR_REG_MASK(FRC1_INT_ADDRESS, FRC1_INT_CLR_MASK);
+ 
+     if (pwm_current_channel >= (*pwm_channel - 1)) {        // *pwm_channel may change outside
+@@ -314,19 +320,15 @@ pwm_tim1_intr_handler(void *dummy) {
+         pwm_single = pwm_single_toggle[pwm_toggle];
+         pwm_channel = &pwm_channel_toggle[pwm_toggle];
+ 
+-        gpio_output_set(pwm_single[*pwm_channel - 1].gpio_set,
+-            pwm_single[*pwm_channel - 1].gpio_clear,
+-            pwm_gpio,
+-            0);
++        GPIO_REG_WRITE(GPIO_OUT_W1TS_ADDRESS, pwm_single[*pwm_channel - 1].gpio_set);
++        GPIO_REG_WRITE(GPIO_OUT_W1TC_ADDRESS, pwm_single[*pwm_channel - 1].gpio_clear);
+ 
+         pwm_current_channel = 0;
+ 
+         RTC_REG_WRITE(FRC1_LOAD_ADDRESS, pwm_single[pwm_current_channel].h_time);
+     } else {
+-        gpio_output_set(pwm_single[pwm_current_channel].gpio_set,
+-            pwm_single[pwm_current_channel].gpio_clear,
+-            pwm_gpio, 0);
+-
++        GPIO_REG_WRITE(GPIO_OUT_W1TS_ADDRESS, pwm_single[pwm_current_channel].gpio_set);
++        GPIO_REG_WRITE(GPIO_OUT_W1TC_ADDRESS, pwm_single[pwm_current_channel].gpio_clear);
+         pwm_current_channel++;
+         RTC_REG_WRITE(FRC1_LOAD_ADDRESS, pwm_single[pwm_current_channel].h_time);
+     }
+@@ -357,7 +359,11 @@ pwm_init(void) {
+     pwm_set_freq(500, 0);
+     pwm_start();
+ 
++#if PWM_INTR_NMI
++    ETS_FRC_TIMER1_NMI_INTR_ATTACH(pwm_tim1_intr_handler);
++#else
+     ETS_FRC_TIMER1_INTR_ATTACH(pwm_tim1_intr_handler, NULL);
++#endif
+     TM1_EDGE_INT_ENABLE();
+     ETS_FRC1_INTR_ENABLE();
+ }
+@@ -390,6 +396,7 @@ pwm_add(uint8_t pin_id, uint32_t pin_mux, uint32_t pin_func) {
+             pwm_gpio |= (1 << pin_num[channel]);
+             PIN_FUNC_SELECT(pin_mux, pin_func);
+             GPIO_REG_WRITE(GPIO_PIN_ADDR(GPIO_ID_PIN(pin_num[channel])), GPIO_REG_READ(GPIO_PIN_ADDR(GPIO_ID_PIN(pin_num[channel]))) & (~GPIO_PIN_PAD_DRIVER_SET(GPIO_PAD_DRIVER_ENABLE)));  // disable open drain;
++            gpio_output_set(0, 0, pwm_gpio, 0);
+             pwm_channel_num++;
+             UNLOCK_PWM(critical);   // leave critical
+             return channel;
+-- 
+2.28.0
+
