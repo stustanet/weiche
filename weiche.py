@@ -44,6 +44,8 @@ from betterntp import BetterNTP
 from effects import EffectQueue
 from config import ConfigInterface
 
+PING_INTERVAL = 30000
+
 gc.collect()
 
 print("GC After imports", gc.mem_free())
@@ -339,6 +341,7 @@ class Weiche:
         #when raising an exception it requires the reset of the controller
         self.running = True
         last_ntp_update = 0
+        last_ping = time.ticks_ms()
         while self.running:
             gc.collect()
             ready = []
@@ -358,6 +361,12 @@ class Weiche:
                 # as there is something to do
                 gc.collect()
                 ready = self.poll.poll(250)
+
+            time_now = time.ticks_ms()
+            if last_ping > time_now or last_ping + PING_INTERVAL < time_now:
+                print("[*] Send MQTT Ping")
+                self.mqttinterface.mqtt.ping()
+                last_ping = time_now
 
             # if the poll() returned an empty list, we are sad
             if not ready:
