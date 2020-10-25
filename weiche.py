@@ -21,7 +21,7 @@ gc.collect()
 try:
     # micropython boot
     import machine
-    from umqtt.simple import MQTTClient
+    from umqtt.robust import MQTTClient
     import network
     import uselect as select
 
